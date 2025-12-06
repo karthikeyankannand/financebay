@@ -1,0 +1,447 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Budget Manager - FinanceBay</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <!-- Navigation -->
+  <nav class="navbar">
+    <div class="nav-brand">💰 FinanceBay</div>
+    <button class="nav-toggle" onclick="toggleMenu()">☰</button>
+    <div class="nav-menu" id="navMenu">
+      <a href="daily-expense.html">Daily Xpense Logger</a>
+      <a href="budget-manager.html" class="active">Budget Manager</a>
+      <a href="budget-analyzer.html">Budget Analyzer</a>
+      <a href="expense-analyzer.html">Xpense Analyzer</a>
+      <a href="income-tracker.html">Income Tracker</a>
+      <a href="#" onclick="logout()">Logout</a>
+    </div>
+    <div class="theme-selector">
+      <button onclick="setTheme('light')" class="theme-btn" title="Light Theme">☀️</button>
+      <button onclick="setTheme('dark')" class="theme-btn" title="Dark Theme">🌙</button>
+      <button onclick="setTheme('grey')" class="theme-btn" title="Grey Theme">⚫</button>
+    </div>
+  </nav>
+
+  <!-- Main Content -->
+  <div class="container">
+    <div class="page-header">
+      <h1>📊 Budget Manager</h1>
+      <p>Set and manage your monthly budgets</p>
+    </div>
+
+
+    <!-- Budget Form Card -->
+    <div class="card">
+      <h2>Set Monthly Budget</h2>
+      <form id="budgetForm" onsubmit="saveBudget(event)">
+        <div class="form-row">
+          <div class="form-group">
+            <label for="budgetMonth">Month <span class="required">*</span></label>
+            <select id="budgetMonth" required>
+              <option value="">Select Month</option>
+              <option value="1">January</option>
+              <option value="2">February</option>
+              <option value="3">March</option>
+              <option value="4">April</option>
+              <option value="5">May</option>
+              <option value="6">June</option>
+              <option value="7">July</option>
+              <option value="8">August</option>
+              <option value="9">September</option>
+              <option value="10">October</option>
+              <option value="11">November</option>
+              <option value="12">December</option>
+            </select>
+          </div>
+
+          <div class="form-group">
+            <label for="budgetYear">Year <span class="required">*</span></label>
+            <select id="budgetYear" required>
+              <!-- Will be populated dynamically -->
+            </select>
+          </div>
+
+          <div class="form-group">
+            <label for="budgetAmount">Budget Amount (₹) <span class="required">*</span></label>
+            <input type="number" id="budgetAmount" step="0.01" min="0" required 
+                   placeholder="Enter budget amount">
+          </div>
+        </div>
+
+        <div class="form-actions">
+          <button type="submit" class="btn btn-primary">💾 Save Budget</button>
+          <button type="button" class="btn btn-secondary" onclick="resetForm()">🔄 Reset</button>
+        </div>
+      </form>
+    </div>
+
+    <!-- Current Month Budget Overview -->
+    <div class="card" id="currentBudgetCard" style="display: none;">
+      <h2>Current Month Budget Overview</h2>
+      <div class="budget-stats">
+        <div class="stat-item">
+          <span class="stat-label">Budget:</span>
+          <span class="stat-value" id="currentBudgetAmount">₹0</span>
+        </div>
+        <div class="stat-item">
+          <span class="stat-label">Spent:</span>
+          <span class="stat-value" id="currentSpentAmount">₹0</span>
+        </div>
+        <div class="stat-item">
+          <span class="stat-label">Remaining:</span>
+          <span class="stat-value" id="currentRemainingAmount">₹0</span>
+        </div>
+        <div class="stat-item">
+          <span class="stat-label">Status:</span>
+          <span class="stat-value" id="budgetStatus">-</span>
+        </div>
+      </div>
+      <div class="progress-bar">
+        <div class="progress-fill" id="budgetProgress"></div>
+      </div>
+      <p class="progress-text" id="progressText">0% of budget used</p>
+    </div>
+
+    <!-- Budget List -->
+    <div class="card">
+      <h2>Budget History</h2>
+      <div class="table-container">
+        <table class="data-table" id="budgetTable">
+          <thead>
+            <tr>
+              <th>Month</th>
+              <th>Year</th>
+              <th>Budget Amount</th>
+              <th>Spent Amount</th>
+              <th>Remaining</th>
+              <th>Status</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody id="budgetTableBody">
+            <tr>
+              <td colspan="7" class="text-center">Loading budgets...</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- Delete Confirmation Modal -->
+  <div id="deleteModal" class="modal">
+    <div class="modal-content">
+      <h3>Confirm Delete</h3>
+      <p>Are you sure you want to delete this budget?</p>
+      <div class="modal-actions">
+        <button class="btn btn-danger" onclick="confirmDelete()">Delete</button>
+        <button class="btn btn-secondary" onclick="closeDeleteModal()">Cancel</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="app.js"></script>
+  <script>
+    let budgets = [];
+    let expenses = [];
+    let editingBudgetId = null;
+    let deletingBudgetId = null;
+
+    // Initialize page
+    async function initializePage() {
+      const session = await checkAuth();
+
+      // Populate year dropdown
+      populateYears();
+      
+      // Set current month and year as default
+      const now = new Date();
+      document.getElementById('budgetMonth').value = now.getMonth() + 1;
+      document.getElementById('budgetYear').value = now.getFullYear();
+
+      // Load data
+      await loadBudgets();
+      await loadExpenses();
+      displayBudgets();
+      updateCurrentBudgetOverview();
+    }
+
+    // Populate years dropdown (current year ± 5 years)
+    function populateYears() {
+      const yearSelect = document.getElementById('budgetYear');
+      const currentYear = new Date().getFullYear();
+      
+      for (let i = currentYear - 2; i <= currentYear + 5; i++) {
+        const option = document.createElement('option');
+        option.value = i;
+        option.textContent = i;
+        yearSelect.appendChild(option);
+      }
+    }
+
+    // Load budgets from API
+    async function loadBudgets() {
+      try {
+        const response = await fetch('/api/budgets');
+        const data = await response.json();
+        
+        if (data.success) {
+          budgets = data.data;
+        } else {
+          console.error('Failed to load budgets');
+        }
+      } catch (error) {
+        console.error('Error loading budgets:', error);
+        await logError(error.message, error.stack, 'Budget Manager');
+      }
+    }
+
+    // Load expenses from API
+    async function loadExpenses() {
+      try {
+        const response = await fetch('/api/expenses');
+        const data = await response.json();
+        
+        if (data.success) {
+          expenses = data.data;
+        } else {
+          console.error('Failed to load expenses');
+        }
+      } catch (error) {
+        console.error('Error loading expenses:', error);
+      }
+    }
+
+    // Calculate total expenses for a given month and year
+    function calculateExpensesForMonth(month, year) {
+      return expenses
+        .filter(expense => {
+          const expenseDate = new Date(expense.entry_date);
+          return expenseDate.getMonth() + 1 === month && 
+                 expenseDate.getFullYear() === year;
+        })
+        .reduce((sum, expense) => sum + parseFloat(expense.amount), 0);
+    }
+
+    // Display budgets in table
+    function displayBudgets() {
+      const tbody = document.getElementById('budgetTableBody');
+      
+      if (budgets.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="7" class="text-center">No budgets set yet</td></tr>';
+        return;
+      }
+
+      // Sort by year and month descending
+      const sortedBudgets = [...budgets].sort((a, b) => {
+        if (a.year !== b.year) return b.year - a.year;
+        return b.month - a.month;
+      });
+
+      tbody.innerHTML = sortedBudgets.map(budget => {
+        const spent = calculateExpensesForMonth(budget.month, budget.year);
+        const remaining = budget.amount - spent;
+        const percentage = (spent / budget.amount) * 100;
+        
+        let status = '✅ On Track';
+        let statusClass = 'status-good';
+        
+        if (percentage >= 100) {
+          status = '🚨 Over Budget';
+          statusClass = 'status-danger';
+        } else if (percentage >= 90) {
+          status = '⚠️ Near Limit';
+          statusClass = 'status-warning';
+        }
+
+        return `
+          <tr>
+            <td>${getMonthName(budget.month)}</td>
+            <td>${budget.year}</td>
+            <td>${formatCurrency(budget.amount)}</td>
+            <td>${formatCurrency(spent)}</td>
+            <td>${formatCurrency(remaining)}</td>
+            <td><span class="status-badge ${statusClass}">${status}</span></td>
+            <td>
+              <button class="btn btn-small btn-primary" onclick="editBudget(${budget.id})">Edit</button>
+              <button class="btn btn-small btn-danger" onclick="deleteBudget(${budget.id})">Delete</button>
+            </td>
+          </tr>
+        `;
+      }).join('');
+    }
+
+    // Update current month budget overview
+    function updateCurrentBudgetOverview() {
+      const now = new Date();
+      const currentMonth = now.getMonth() + 1;
+      const currentYear = now.getFullYear();
+
+      const currentBudget = budgets.find(b => b.month === currentMonth && b.year === currentYear);
+      
+      if (!currentBudget) {
+        document.getElementById('currentBudgetCard').style.display = 'none';
+        return;
+      }
+
+      document.getElementById('currentBudgetCard').style.display = 'block';
+
+      const spent = calculateExpensesForMonth(currentMonth, currentYear);
+      const remaining = currentBudget.amount - spent;
+      const percentage = Math.min((spent / currentBudget.amount) * 100, 100);
+
+      document.getElementById('currentBudgetAmount').textContent = formatCurrency(currentBudget.amount);
+      document.getElementById('currentSpentAmount').textContent = formatCurrency(spent);
+      document.getElementById('currentRemainingAmount').textContent = formatCurrency(remaining);
+      
+      let status = '✅ On Track';
+      let statusClass = 'status-good';
+      
+      if (percentage >= 100) {
+        status = '🚨 Over Budget';
+        statusClass = 'status-danger';
+      } else if (percentage >= 90) {
+        status = '⚠️ Near Limit';
+        statusClass = 'status-warning';
+      }
+
+      const statusEl = document.getElementById('budgetStatus');
+      statusEl.textContent = status;
+      statusEl.className = `stat-value status-badge ${statusClass}`;
+
+      // Update progress bar
+      const progressFill = document.getElementById('budgetProgress');
+      progressFill.style.width = `${percentage}%`;
+      
+      if (percentage >= 100) {
+        progressFill.style.backgroundColor = '#dc3545';
+      } else if (percentage >= 90) {
+        progressFill.style.backgroundColor = '#ffc107';
+      } else {
+        progressFill.style.backgroundColor = '#28a745';
+      }
+
+      document.getElementById('progressText').textContent = 
+        `${percentage.toFixed(1)}% of budget used`;
+    }
+
+    // Save budget
+    async function saveBudget(event) {
+      event.preventDefault();
+
+      const month = parseInt(document.getElementById('budgetMonth').value);
+      const year = parseInt(document.getElementById('budgetYear').value);
+      const amount = parseFloat(document.getElementById('budgetAmount').value);
+
+      if (!month || !year || !amount) {
+        alert('Please fill all fields');
+        return;
+      }
+
+      try {
+        const url = editingBudgetId ? `/api/budgets/${editingBudgetId}` : '/api/budgets';
+        const method = editingBudgetId ? 'PUT' : 'POST';
+
+        const response = await fetch(url, {
+          method: method,
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ month, year, amount })
+        });
+
+        const data = await response.json();
+
+        if (data.success) {
+          alert(data.message);
+          resetForm();
+          await loadBudgets();
+          displayBudgets();
+          updateCurrentBudgetOverview();
+        } else {
+          alert(data.message);
+        }
+      } catch (error) {
+        console.error('Error saving budget:', error);
+        await logError(error.message, error.stack, 'Budget Manager');
+        alert('Failed to save budget');
+      }
+    }
+
+    // Edit budget
+    function editBudget(id) {
+      const budget = budgets.find(b => b.id === id);
+      if (!budget) return;
+
+      editingBudgetId = id;
+      document.getElementById('budgetMonth').value = budget.month;
+      document.getElementById('budgetYear').value = budget.year;
+      document.getElementById('budgetAmount').value = budget.amount;
+
+      // Scroll to form
+      document.getElementById('budgetForm').scrollIntoView({ behavior: 'smooth' });
+    }
+
+    // Delete budget
+    function deleteBudget(id) {
+      deletingBudgetId = id;
+      document.getElementById('deleteModal').style.display = 'flex';
+    }
+
+    // Confirm delete
+    async function confirmDelete() {
+      try {
+        const response = await fetch(`/api/budgets/${deletingBudgetId}`, {
+          method: 'DELETE'
+        });
+
+        const data = await response.json();
+
+        if (data.success) {
+          alert(data.message);
+          await loadBudgets();
+          displayBudgets();
+          updateCurrentBudgetOverview();
+        } else {
+          alert(data.message);
+        }
+      } catch (error) {
+        console.error('Error deleting budget:', error);
+        await logError(error.message, error.stack, 'Budget Manager');
+        alert('Failed to delete budget');
+      }
+
+      closeDeleteModal();
+    }
+
+    // Close delete modal
+    function closeDeleteModal() {
+      document.getElementById('deleteModal').style.display = 'none';
+      deletingBudgetId = null;
+    }
+
+    // Reset form
+    function resetForm() {
+      document.getElementById('budgetForm').reset();
+      editingBudgetId = null;
+      
+      // Set current month and year as default
+      const now = new Date();
+      document.getElementById('budgetMonth').value = now.getMonth() + 1;
+      document.getElementById('budgetYear').value = now.getFullYear();
+    }
+
+    // Helper function to get month name
+    function getMonthName(month) {
+      const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 
+                      'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+      return months[month - 1];
+    }
+
+    // Initialize page on load
+    initializePage();
+  </script>
+</body>
+</html>

@@ -1,0 +1,407 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Admin Panel - FinanceBay</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <nav class="navbar">
+    <div class="nav-brand">💰 FinanceBay Admin</div>
+    <button class="nav-toggle" onclick="toggleMenu()">☰</button>
+    <div class="nav-menu" id="navMenu">
+      <a href="#" onclick="showSection('dashboard'); return false;" class="active">Dashboard</a>
+      <a href="#" onclick="showSection('users'); return false;">Users</a>
+      <a href="#" onclick="showSection('lov'); return false;">LoV Manager</a>
+      <a href="#" onclick="showSection('traffic'); return false;">Traffic</a>
+      <a href="#" onclick="showSection('errors'); return false;">Error Logs</a>
+      <a href="#" onclick="logout()">Logout</a>
+    </div>
+    <div class="theme-selector">
+      <button onclick="setTheme('light')" class="theme-btn" title="Light Theme">☀️</button>
+      <button onclick="setTheme('dark')" class="theme-btn" title="Dark Theme">🌙</button>
+      <button onclick="setTheme('grey')" class="theme-btn" title="Grey Theme">⚫</button>
+    </div>
+  </nav>
+
+  <div class="container">
+    <!-- Dashboard Section -->
+    <div id="dashboard" class="admin-section">
+      <div class="page-header">
+        <h1>📊 Dashboard</h1>
+        <p>System Overview</p>
+      </div>
+
+      <div class="admin-grid">
+        <div class="stat-card">
+          <h3 id="totalUsers">0</h3>
+          <p>Total Users</p>
+        </div>
+        <div class="stat-card">
+          <h3 id="totalTraffic">0</h3>
+          <p>Page Visits</p>
+        </div>
+        <div class="stat-card">
+          <h3 id="totalErrors">0</h3>
+          <p>Error Logs</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Users Section -->
+    <div id="users" class="admin-section" style="display: none;">
+      <div class="page-header">
+        <h1>👥 User Database</h1>
+        <p>Manage system users</p>
+      </div>
+
+      <div class="card">
+        <div class="table-container">
+          <table id="usersTable">
+            <thead>
+              <tr>
+                <th>ID</th>
+                <th>Username</th>
+                <th>Email</th>
+                <th>Admin</th>
+                <th>Created At</th>
+              </tr>
+            </thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- LoV Manager Section -->
+    <div id="lov" class="admin-section" style="display: none;">
+      <div class="page-header">
+        <h1>📋 List of Values Manager</h1>
+        <p>Manage dropdown and combobox values</p>
+      </div>
+
+      <div class="card">
+        <h3>Add New Value</h3>
+        <form id="lovForm" onsubmit="handleAddLoV(event)">
+          <div class="form-row">
+            <div class="form-group">
+              <label for="lovField">Field Name</label>
+              <select id="lovField" required>
+                <option value="uom">UOM</option>
+                <option value="expense_category">Expense Category</option>
+                <option value="expense_type">Expense Type</option>
+                <option value="payment_method">Payment Method</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label for="lovValue">Value</label>
+              <input type="text" id="lovValue" required>
+            </div>
+          </div>
+          <button type="submit" class="btn btn-primary">Add Value</button>
+        </form>
+        <div id="lovMessage" class="message"></div>
+      </div>
+
+      <div class="card">
+        <h3>Existing Values</h3>
+        <div class="table-container">
+          <table id="lovTable">
+            <thead>
+              <tr>
+                <th>Field Name</th>
+                <th>Value</th>
+                <th>Created At</th>
+                <th>Action</th>
+              </tr>
+            </thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- Traffic Section -->
+    <div id="traffic" class="admin-section" style="display: none;">
+      <div class="page-header">
+        <h1>🚦 Traffic Log</h1>
+        <p>Monitor user activity</p>
+      </div>
+
+      <div class="card">
+        <div class="table-container">
+          <table id="trafficTable">
+            <thead>
+              <tr>
+                <th>User</th>
+                <th>Page</th>
+                <th>Action</th>
+                <th>Timestamp</th>
+              </tr>
+            </thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- Error Logs Section -->
+    <div id="errors" class="admin-section" style="display: none;">
+      <div class="page-header">
+        <h1>🐛 Error Logs</h1>
+        <p>System error tracking</p>
+      </div>
+
+      <div class="card">
+        <div class="table-container">
+          <table id="errorsTable">
+            <thead>
+              <tr>
+                <th>User</th>
+                <th>Error Message</th>
+                <th>Page</th>
+                <th>Timestamp</th>
+              </tr>
+            </thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="app.js"></script>
+  <script>
+    let currentSection = 'dashboard';
+
+    function showSection(section) {
+      // Hide all sections
+      document.querySelectorAll('.admin-section').forEach(s => s.style.display = 'none');
+      
+      // Show selected section
+      document.getElementById(section).style.display = 'block';
+      
+      // Update active nav link
+      document.querySelectorAll('.nav-menu a').forEach(a => a.classList.remove('active'));
+      event.target.classList.add('active');
+      
+      currentSection = section;
+      
+      // Load data for the section
+      loadSectionData(section);
+    }
+
+    function loadSectionData(section) {
+      switch(section) {
+        case 'dashboard':
+          loadDashboard();
+          break;
+        case 'users':
+          loadUsers();
+          break;
+        case 'lov':
+          loadLoV();
+          break;
+        case 'traffic':
+          loadTraffic();
+          break;
+        case 'errors':
+          loadErrors();
+          break;
+      }
+    }
+
+    async function loadDashboard() {
+      try {
+        // Load users count
+        const usersResponse = await fetch('/api/admin/users');
+        const usersData = await usersResponse.json();
+        if (usersData.success) {
+          document.getElementById('totalUsers').textContent = usersData.data.length;
+        }
+
+        // Load traffic count
+        const trafficResponse = await fetch('/api/admin/traffic');
+        const trafficData = await trafficResponse.json();
+        if (trafficData.success) {
+          document.getElementById('totalTraffic').textContent = trafficData.data.length;
+        }
+
+        // Load errors count
+        const errorsResponse = await fetch('/api/admin/errors');
+        const errorsData = await errorsResponse.json();
+        if (errorsData.success) {
+          document.getElementById('totalErrors').textContent = errorsData.data.length;
+        }
+      } catch (error) {
+        console.error('Failed to load dashboard:', error);
+      }
+    }
+
+    async function loadUsers() {
+      try {
+        const response = await fetch('/api/admin/users');
+        const data = await response.json();
+
+        if (data.success) {
+          const tbody = document.querySelector('#usersTable tbody');
+          tbody.innerHTML = data.data.map(user => `
+            <tr>
+              <td>${user.id}</td>
+              <td>${user.username}</td>
+              <td>${user.email}</td>
+              <td>${user.is_admin ? '✅ Yes' : '❌ No'}</td>
+              <td>${formatDateTime(user.created_at)}</td>
+            </tr>
+          `).join('');
+        }
+      } catch (error) {
+        console.error('Failed to load users:', error);
+      }
+    }
+
+    async function loadLoV() {
+      try {
+        const response = await fetch('/api/lov');
+        const data = await response.json();
+
+        if (data.success) {
+          const tbody = document.querySelector('#lovTable tbody');
+          tbody.innerHTML = data.data.map(lov => `
+            <tr>
+              <td>${lov.field_name}</td>
+              <td>${lov.value}</td>
+              <td>${formatDateTime(lov.created_at)}</td>
+              <td>
+                <button class="btn btn-danger btn-small" onclick="deleteLoV(${lov.id})">Delete</button>
+              </td>
+            </tr>
+          `).join('');
+        }
+      } catch (error) {
+        console.error('Failed to load LoV:', error);
+      }
+    }
+
+    async function handleAddLoV(event) {
+      event.preventDefault();
+      const message = document.getElementById('lovMessage');
+
+      const fieldName = document.getElementById('lovField').value;
+      const value = document.getElementById('lovValue').value;
+
+      try {
+        const response = await fetch('/api/lov', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ fieldName, value })
+        });
+
+        const data = await response.json();
+
+        if (data.success) {
+          message.textContent = 'Value added successfully!';
+          message.className = 'message success';
+          document.getElementById('lovForm').reset();
+          loadLoV();
+          setTimeout(() => {
+            message.textContent = '';
+            message.className = 'message';
+          }, 3000);
+        } else {
+          message.textContent = data.message || 'Failed to add value';
+          message.className = 'message error';
+        }
+      } catch (error) {
+        console.error('Failed to add LoV:', error);
+        message.textContent = 'Failed to add value';
+        message.className = 'message error';
+      }
+    }
+
+    async function deleteLoV(id) {
+      if (!confirm('Are you sure you want to delete this value?')) {
+        return;
+      }
+
+      try {
+        const response = await fetch(`/api/lov/${id}`, {
+          method: 'DELETE'
+        });
+
+        const data = await response.json();
+
+        if (data.success) {
+          loadLoV();
+        } else {
+          alert('Failed to delete value');
+        }
+      } catch (error) {
+        console.error('Failed to delete LoV:', error);
+        alert('Failed to delete value');
+      }
+    }
+
+    async function loadTraffic() {
+      try {
+        const response = await fetch('/api/admin/traffic');
+        const data = await response.json();
+
+        if (data.success) {
+          const tbody = document.querySelector('#trafficTable tbody');
+          if (data.data.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="4" class="no-data">No traffic data available</td></tr>';
+            return;
+          }
+          tbody.innerHTML = data.data.map(traffic => `
+            <tr>
+              <td>${traffic.username || 'Anonymous'}</td>
+              <td>${traffic.page}</td>
+              <td>${traffic.action}</td>
+              <td>${formatDateTime(traffic.timestamp)}</td>
+            </tr>
+          `).join('');
+        }
+      } catch (error) {
+        console.error('Failed to load traffic:', error);
+      }
+    }
+
+    async function loadErrors() {
+      try {
+        const response = await fetch('/api/admin/errors');
+        const data = await response.json();
+
+        if (data.success) {
+          const tbody = document.querySelector('#errorsTable tbody');
+          if (data.data.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="4" class="no-data">No errors logged</td></tr>';
+            return;
+          }
+          tbody.innerHTML = data.data.map(error => `
+            <tr>
+              <td>${error.username || 'Anonymous'}</td>
+              <td>${error.error_message}</td>
+              <td>${error.page || 'N/A'}</td>
+              <td>${formatDateTime(error.timestamp)}</td>
+            </tr>
+          `).join('');
+        }
+      } catch (error) {
+        console.error('Failed to load errors:', error);
+      }
+    }
+
+    // Check admin access
+    checkAuth().then(session => {
+      if (!session.isAdmin) {
+        alert('Admin access required!');
+        window.location.href = 'daily-expense.html';
+      } else {
+        loadDashboard();
+      }
+    });
+  </script>
+</body>
+</html>

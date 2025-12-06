@@ -1,0 +1,248 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Daily Xpense Logger - FinanceBay</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <nav class="navbar">
+    <div class="nav-brand">💰 FinanceBay</div>
+    <button class="nav-toggle" onclick="toggleMenu()">☰</button>
+    <div class="nav-menu" id="navMenu">
+      <a href="daily-expense.html" class="active">Daily Xpense Logger</a>
+      <a href="budget-manager.html">Budget Manager</a>
+      <a href="budget-analyzer.html">Budget Analyzer</a>
+      <a href="expense-analyzer.html">Xpense Analyzer</a>
+      <a href="income-tracker.html">Income Tracker</a>
+      <a href="#" onclick="logout()">Logout</a>
+    </div>
+    <div class="theme-selector">
+      <button onclick="setTheme('light')" class="theme-btn" title="Light Theme">☀️</button>
+      <button onclick="setTheme('dark')" class="theme-btn" title="Dark Theme">🌙</button>
+      <button onclick="setTheme('grey')" class="theme-btn" title="Grey Theme">⚫</button>
+    </div>
+  </nav>
+
+  <div class="container">
+    <div class="page-header">
+      <h1>📝 Daily Xpense Logger</h1>
+      <p>Track your daily expenses</p>
+    </div>
+
+    <div class="card">
+      <form id="expenseForm" onsubmit="handleExpenseSubmit(event)">
+        <div class="form-group">
+          <label for="description">Xpense Description</label>
+          <input type="text" id="description" placeholder="Enter expense description" required>
+        </div>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label for="amount">Amount</label>
+            <input type="number" id="amount" step="0.01" min="0" placeholder="0.00" required>
+          </div>
+
+          <div class="form-group">
+            <label for="quantity">Quantity</label>
+            <input type="number" id="quantity" step="0.01" min="0" placeholder="0.00" required>
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label for="uom">UOM</label>
+          <select id="uom" required>
+            <option value="">Select UOM</option>
+          </select>
+        </div>
+
+        <div class="form-group">
+          <label for="category">Xpense Category</label>
+          <input type="text" id="category" list="categoryList" placeholder="Select or type category" required>
+          <datalist id="categoryList"></datalist>
+        </div>
+
+        <div class="form-group">
+          <label for="expenseType">Xpense Type</label>
+          <select id="expenseType" required>
+            <option value="">Select Type</option>
+          </select>
+        </div>
+
+        <div class="form-group">
+          <label for="paymentMethod">Xpense Method</label>
+          <select id="paymentMethod" required>
+            <option value="">Select Method</option>
+          </select>
+        </div>
+
+        <button type="submit" class="btn btn-primary btn-large">Log</button>
+      </form>
+
+      <div id="message" class="message"></div>
+    </div>
+
+    <div class="card">
+      <h2>Recent Expenses</h2>
+      <div id="expenseList" class="expense-list"></div>
+    </div>
+  </div>
+
+  <script src="app.js"></script>
+  <script>
+    let expenseData = [];
+
+    async function loadDropdownValues() {
+      try {
+        // Load UOM values
+        const uomResponse = await fetch('/api/lov/uom');
+        const uomData = await uomResponse.json();
+        if (uomData.success) {
+          const uomSelect = document.getElementById('uom');
+          uomData.data.forEach(value => {
+            const option = document.createElement('option');
+            option.value = value;
+            option.textContent = value;
+            uomSelect.appendChild(option);
+          });
+        }
+
+        // Load Category values
+        const categoryResponse = await fetch('/api/lov/expense_category');
+        const categoryData = await categoryResponse.json();
+        if (categoryData.success) {
+          const categoryList = document.getElementById('categoryList');
+          categoryData.data.forEach(value => {
+            const option = document.createElement('option');
+            option.value = value;
+            categoryList.appendChild(option);
+          });
+        }
+
+        // Load Expense Type values
+        const typeResponse = await fetch('/api/lov/expense_type');
+        const typeData = await typeResponse.json();
+        if (typeData.success) {
+          const typeSelect = document.getElementById('expenseType');
+          typeData.data.forEach(value => {
+            const option = document.createElement('option');
+            option.value = value;
+            option.textContent = value;
+            typeSelect.appendChild(option);
+          });
+        }
+
+        // Load Payment Method values
+        const methodResponse = await fetch('/api/lov/payment_method');
+        const methodData = await methodResponse.json();
+        if (methodData.success) {
+          const methodSelect = document.getElementById('paymentMethod');
+          methodData.data.forEach(value => {
+            const option = document.createElement('option');
+            option.value = value;
+            option.textContent = value;
+            methodSelect.appendChild(option);
+          });
+        }
+      } catch (error) {
+        console.error('Failed to load dropdown values:', error);
+        logError('Failed to load dropdown values', error.stack, 'Daily Xpense Logger');
+      }
+    }
+
+    async function handleExpenseSubmit(event) {
+      event.preventDefault();
+      const message = document.getElementById('message');
+
+      const expenseData = {
+        description: document.getElementById('description').value,
+        amount: parseFloat(document.getElementById('amount').value),
+        quantity: parseFloat(document.getElementById('quantity').value),
+        uom: document.getElementById('uom').value,
+        category: document.getElementById('category').value,
+        expenseType: document.getElementById('expenseType').value,
+        paymentMethod: document.getElementById('paymentMethod').value,
+        entryDate: new Date().toISOString().split('T')[0]
+      };
+
+      // Validate all fields are filled
+      if (!expenseData.description || !expenseData.amount || !expenseData.quantity || 
+          !expenseData.uom || !expenseData.category || !expenseData.expenseType || 
+          !expenseData.paymentMethod) {
+        message.textContent = 'Please fill all the fields';
+        message.className = 'message error';
+        return;
+      }
+
+      try {
+        const response = await fetch('/api/expenses', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(expenseData)
+        });
+
+        const data = await response.json();
+
+        if (data.success) {
+          message.textContent = 'Expense logged successfully!';
+          message.className = 'message success';
+          document.getElementById('expenseForm').reset();
+          loadExpenses();
+          setTimeout(() => {
+            message.textContent = '';
+            message.className = 'message';
+          }, 3000);
+        } else {
+          message.textContent = data.message || 'Failed to log expense';
+          message.className = 'message error';
+        }
+      } catch (error) {
+        console.error('Expense submission error:', error);
+        message.textContent = 'Failed to log expense. Please try again.';
+        message.className = 'message error';
+        logError('Expense submission failed', error.stack, 'Daily Xpense Logger');
+      }
+    }
+
+    async function loadExpenses() {
+      try {
+        const response = await fetch('/api/expenses');
+        const data = await response.json();
+
+        if (data.success) {
+          const expenseList = document.getElementById('expenseList');
+          if (data.data.length === 0) {
+            expenseList.innerHTML = '<p class="no-data">No expenses recorded yet.</p>';
+            return;
+          }
+
+          expenseList.innerHTML = data.data.map(expense => `
+            <div class="expense-item">
+              <div class="expense-header">
+                <span class="expense-date">${new Date(expense.entry_date).toLocaleDateString()}</span>
+                <span class="expense-amount">₹${expense.amount.toFixed(2)}</span>
+              </div>
+              <div class="expense-details">
+                <strong>${expense.description}</strong>
+                <div class="expense-meta">
+                  ${expense.quantity} ${expense.uom} | ${expense.category} | ${expense.expense_type} | ${expense.payment_method}
+                </div>
+              </div>
+            </div>
+          `).join('');
+        }
+      } catch (error) {
+        console.error('Failed to load expenses:', error);
+        logError('Failed to load expenses', error.stack, 'Daily Xpense Logger');
+      }
+    }
+
+    // Initialize page
+    checkAuth().then(() => {
+      loadDropdownValues();
+      loadExpenses();
+    });
+  </script>
+</body>
+</html>

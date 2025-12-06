@@ -4,7 +4,7 @@
   "description": "Mobile Expense Tracking App",
   "main": "server.js",
   "scripts": {
-    "start": "node server.js",
+    "start": "node server-postgres.js",
     "dev": "node server.js",
     "start:postgres": "node server-postgres.js",
     "build": "echo 'Build complete'"
